@@ -42,26 +42,52 @@ class App::Routes < Roda
       # Authentication required for all routes below
       auth_required!
 
-      # User profile routes
-      r.on 'me' do
-        r.get('info') { Users[r].info }
-        r.put('update-password') { Users[r].update_password }
-      end
-
-      # Admin-only routes
-      admin_required!
-      
-      # Wrap all admin routes in error handling
       begin
+        # User profile routes
+        r.on 'me' do
+          r.get('info') { Users[r].info }
+          r.put('update-password') { Users[r].update_password }
+        end
+
+        # ---- Catalog: readable by any authenticated user, ----
+        # ---- mutations restricted to admins.                ----
+        r.on 'products' do
+          r.get('by-barcode') { Products[r].by_barcode }
+          r.get(Integer) { |id| Products[r, id: id].get }
+          r.post { admin_required!; Products[r].create }
+          r.put(Integer)    { |id| admin_required!; Products[r, id: id].update }
+          r.delete(Integer) { |id| admin_required!; Products[r, id: id].delete }
+          r.get { Products[r].list }
+        end
+
+        # ---- Stock movements: any authenticated user may record ----
+        r.on 'transactions' do
+          r.get(Integer) { |id| Transactions[r, id: id].get }
+          r.post { Transactions[r].create }
+          r.get  { Transactions[r].list }
+        end
+
+        r.on 'branches' do
+          r.get(Integer) { |id| Branches[r, id: id].get }
+          r.post { admin_required!; Branches[r].create }
+          r.put(Integer)    { |id| admin_required!; Branches[r, id: id].update }
+          r.delete(Integer) { |id| admin_required!; Branches[r, id: id].delete }
+          r.get { Branches[r].list }
+        end
+
+        r.on 'categories' do
+          r.get(Integer) { |id| Categories[r, id: id].get }
+          r.post { admin_required!; Categories[r].create }
+          r.put(Integer)    { |id| admin_required!; Categories[r, id: id].update }
+          r.delete(Integer) { |id| admin_required!; Categories[r, id: id].delete }
+          r.get { Categories[r].list }
+        end
+
+        # ---- Admin-only: user management ----
         r.on 'users' do
+          admin_required!
           do_crud(Users, r, 'CRUDL')
         end
-
-        r.on 'regions' do
-          do_crud(Regions, r, 'CRUDL')
-        end
-        
-        # Add other admin routes here
       rescue => e
         App.logger.error("API Error: #{e.message}")
         App.logger.error(e.backtrace)
@@ -92,7 +118,7 @@ class App::Routes < Roda
   end
 
   def admin_required!
-    unless (App.cu.user_obj.admin? || App.cu.user_obj.rgm?)
+    unless App.cu.user_obj&.admin?
       request.halt(403, {'Content-Type' => 'application/json'},{ status: 'Forbidden!' }.to_json)
     end
   end

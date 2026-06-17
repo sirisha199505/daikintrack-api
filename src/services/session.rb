@@ -1,10 +1,15 @@
 class App::Services::Session < App::Services::Base
 
   def login
-    user = User.find(email: params[:email]&.strip, active: true)
+    identifier = (params[:username] || params[:email]).to_s.strip
+    user = User.where(active: true).where(username: identifier).or(email: identifier).first
 
     unless user && user.password == params[:password]
-      return_errors!("Invalid Email / Password")
+      return_errors!("Invalid username / password")
+    end
+
+    if user.status.to_s.casecmp('inactive').zero?
+      return_errors!("This account is disabled. Contact an admin.")
     end
 
     # Device binding check

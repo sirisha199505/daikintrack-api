@@ -1,6 +1,6 @@
 source "https://rubygems.org"
 
-ruby "3.4.7"
+ruby "3.4.1"
 
 gem 'roda'
 gem 'puma'

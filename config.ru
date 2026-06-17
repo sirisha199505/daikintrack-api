@@ -1,6 +1,4 @@
 require 'bundler'
-require 'open-uri'
-require 'csv'
 Rack::Utils # Patch
 require './src/app'
 

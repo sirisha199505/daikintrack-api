@@ -2,31 +2,31 @@ class App::Models::User < Sequel::Model
   include BCrypt
 
   # Associations
-  # one_to_many :user_properties
+  many_to_one :branch, class: 'App::Models::Branch'
 
-  # Role constants
+  # Role constants — DaikinTrack has three roles.
   ROLES = {
     admin: 1,
-    rgm: 2,
-    gm: 3
+    store_manager: 2,
+    distributor: 3
   }.freeze
 
   def admin?
     role == ROLES[:admin]
   end
 
-  def rgm?
-    role == ROLES[:rgm]
+  def store_manager?
+    role == ROLES[:store_manager]
   end
 
-  def gm?
-    role == ROLES[:gm]
+  def distributor?
+    role == ROLES[:distributor]
   end
 
   def validate
     super
-    validates_presence [:full_name, :email]
-    validates_unique(:email) { |ds| ds.where(active: true) }
+    validates_presence [:full_name, :username]
+    validates_unique(:username) { |ds| ds.where(active: true) }
   end
 
   def password
@@ -46,10 +46,10 @@ class App::Models::User < Sequel::Model
     case role
     when ROLES[:admin]
       "Admin"
-    when ROLES[:rgm]
-      "RGM"
-    when ROLES[:gm]
-      "GM"
+    when ROLES[:store_manager]
+      "Store Manager"
+    when ROLES[:distributor]
+      "Distributor"
     else
       "Unknown"
     end
@@ -92,21 +92,9 @@ class App::Models::User < Sequel::Model
     mail.deliver!
   end
 
-  def valid_property_ids
-    if admin?
-      App::Models::Property.where(client_id: client_id).select_map(:id)
-    else
-      property_ids || []
-    end
-  end
-
-  def properties
-    property_ids || []
-  end
-
   def as_pos
     as_json(only:
-      [:email, :full_name, :phone_number, :role, :id, :active, :created_at, :updated_at, :last_logged_in_at, :parent_id]
-    ).merge!(role_name: role_name, property_count: properties.length)
+      [:id, :full_name, :username, :email, :phone_number, :role, :branch_id, :status, :active, :created_at, :updated_at, :last_logged_in_at]
+    ).merge!(role_name: role_name)
   end
 end

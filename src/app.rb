@@ -27,7 +27,27 @@ module App
       ENV.fetch('DB_URL') { raise "DB_URL environment variable is required" }
     end
 
+    # Minimal .env loader so DB_URL / JWT_SECRET are available without an
+    # extra gem. Values already present in the real ENV always win.
+    def load_dotenv!
+      env_file = File.join(root, '.env')
+      return unless File.exist?(env_file)
+
+      File.foreach(env_file) do |line|
+        line = line.strip
+        next if line.empty? || line.start_with?('#')
+        key, _, val = line.partition('=')
+        key = key.strip
+        next if key.empty?
+        val = val.strip.gsub(/\A["']|["']\z/, '')
+        ENV[key] ||= val
+      end
+    end
+
     def load!
+      # Load environment variables from .env first
+      load_dotenv!
+
       # First connect to the database
       connect_to_database
       

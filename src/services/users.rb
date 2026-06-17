@@ -4,36 +4,44 @@ class App::Services::Users < App::Services::Base
   RESET_TOKEN_EXPIRATION_TIME = 2 * 60 * 60 
 
   def list
-    ds = model.order(Sequel.desc(:created_at))
+    ds = model.where(active: true).order(Sequel.desc(:created_at))
     if qs[:search].present?
       search_term = "%#{qs[:search]}%"
-      ds = ds.where(Sequel.ilike(:full_name, search_term)).or(Sequel.ilike(:phone_number, search_term))
+      ds = ds.where(
+        Sequel.ilike(:full_name, search_term) |
+        Sequel.ilike(:username, search_term) |
+        Sequel.ilike(:email, search_term)
+      )
     end
-    if App.cu.user_obj.rgm?
-      ds = ds.where(parent_id: App.cu.user_obj.id)
-    end
+    ds = ds.where(role: qs[:role]) if qs[:role].present?
+    ds = ds.where(branch_id: qs[:branch_id]) if qs[:branch_id].present?
     count = ds.count
     return_success(ds.offset(offset).limit(limit).all.map(&:as_pos), total_pages: (count / page_size.to_f).ceil )
   end
 
 
   def get
-    result = item.as_json(only: [:full_name, :email, :role, :id, :active])
-    result.merge!(allowed_properties: item.property_ids, properties: Property.all.map{|p| {name: p.name, id: p.id}} )
-    return_success(result)
+    return_success(item.as_pos)
   end
 
   def create
-    obj = model.new(data_for(:save))
-    if App.cu.user_obj.role == 2
-      obj.role = 3
-    end
-    save(obj)
+    data = data_for(:save)
+    obj = model.new(data.except(:password))
+    obj.password = data[:password] if data[:password].present?
+    save(obj) { |u| return_success(u.as_pos) }
+  end
+
+  def update(data = nil)
+    data ||= data_for(:save)
+    pwd = data.delete(:password)
+    item.set_fields(data, data.keys)
+    item.password = pwd if pwd.present?
+    save(item) { |u| return_success(u.as_pos) }
   end
 
   def info
     return_success(
-      App.cu.user_obj.as_json(only: [:email, :id, :full_name, :role, :updated_at])
+      App.cu.user_obj.as_json(only: [:email, :id, :full_name, :username, :role, :branch_id, :updated_at]).merge!(role_name: App.cu.user_obj.role_name)
     )
   end
 
@@ -110,19 +118,10 @@ class App::Services::Users < App::Services::Base
     end
   end
 
-  def load_rgms
-    return_success(
-      model.where(role: 2).all.map{|u| {id: u.id, name: u.full_name, property_ids: u.property_ids}}
-    )
-  end
-  
-
-
-
-
   def self.fields
     {
-      save: [:full_name, :password, :email, :role, :property_ids, :active]
+      save: [:full_name, :username, :password, :email, :phone_number,
+             :role, :branch_id, :status, :active]
     }
   end
 end
