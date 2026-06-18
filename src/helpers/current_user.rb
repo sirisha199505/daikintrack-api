@@ -12,10 +12,11 @@ class App::Helpers::CurrentUser
     end
 
     def valid?
-      return false if id.blank? || user_obj.nil?
-      
-      # Check if token matches and is not expired
-      user_obj.current_session_id == token
+      # The JWT is already verified (signature + expiry) in decoded_token, so a
+      # present id plus an existing active user is sufficient. We intentionally
+      # do NOT require current_session_id == token, which lets the same account
+      # stay logged in on multiple devices at once (desktop + mobile).
+      !id.blank? && !user_obj.nil?
     end
 
     def ip
