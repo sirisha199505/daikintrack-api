@@ -1,4 +1,9 @@
 require './src/app'
+
+# Load .env so DB_URL / JWT_SECRET are available to rake tasks
+# (rake doesn't call App.load!, which is where dotenv is normally loaded).
+App.load_dotenv!
+
 namespace :db do
   desc "Run migrations"
   task :migrate, [:version] do |t, args|
