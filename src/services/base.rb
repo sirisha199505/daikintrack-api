@@ -174,10 +174,6 @@ class App::Services::Base
     [(qs[:page_size] || 20).to_i, 300].min
   end
 
-  def current_client_id
-    App.cu.user_obj.client_id
-  end
-
   def to_est(time)
     # "Eastern Time (US & Canada)" is the Rails time zone name for EST/EDT.
     time.in_time_zone("Eastern Time (US & Canada)")
