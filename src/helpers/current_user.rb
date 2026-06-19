@@ -79,7 +79,9 @@ class App::Helpers::CurrentUser
     end
 
     def admin?
-      user_obj&.role === 0
+      # Admin is role 1 — matches the seed data and the frontend role map
+      # (1=admin, 2=store_manager, 3=distributor).
+      user_obj&.role === 1
     end
 
     def entity_ids
