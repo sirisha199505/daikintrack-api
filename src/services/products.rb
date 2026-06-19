@@ -37,15 +37,33 @@ class App::Services::Products < App::Services::Base
   end
 
   def create
-    obj = model.new(data_for(:save))
+    data = data_for(:save)
+    data[:branch_id] = manager_branch_id!(data[:branch_id])
+    obj = model.new(data)
     obj.barcode = generate_barcode if obj.barcode.blank?
     save(obj) { |o| return_success(o.as_pos) }
   end
 
   def update(data = nil)
     data ||= data_for(:save)
+    user = App.cu.user_obj
+    # A store manager may only edit products in their own branch, and cannot
+    # move a product to a different branch.
+    if user && !user.admin?
+      return_errors!('Forbidden!', 403) unless item.branch_id == user.branch_id
+    end
+    data[:branch_id] = manager_branch_id!(data[:branch_id])
     item.set_fields(data, data.keys)
     save(item) { |o| return_success(o.as_pos) }
+  end
+
+  # For store managers, force the product's branch to their own assigned branch.
+  # Admins keep whatever branch was supplied.
+  def manager_branch_id!(requested)
+    user = App.cu.user_obj
+    return requested if user.nil? || user.admin?
+    return_errors!('You are not assigned to a branch.', 403) if user.branch_id.blank?
+    user.branch_id
   end
 
   def generate_barcode

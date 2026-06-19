@@ -50,12 +50,13 @@ class App::Routes < Roda
         end
 
         # ---- Catalog: readable by any authenticated user, ----
-        # ---- mutations restricted to admins.                ----
+        # ---- create/edit allowed for admins and store managers       ----
+        # ---- (managers scoped to their own branch); delete admin-only ----
         r.on 'products' do
           r.get('by-barcode') { Products[r].by_barcode }
           r.get(Integer) { |id| Products[r, id: id].get }
-          r.post { admin_required!; Products[r].create }
-          r.put(Integer)    { |id| admin_required!; Products[r, id: id].update }
+          r.post { product_write_required!; Products[r].create }
+          r.put(Integer)    { |id| product_write_required!; Products[r, id: id].update }
           r.delete(Integer) { |id| admin_required!; Products[r, id: id].delete }
           r.get { Products[r].list }
         end
@@ -119,6 +120,15 @@ class App::Routes < Roda
 
   def admin_required!
     unless App.cu.user_obj&.admin?
+      request.halt(403, {'Content-Type' => 'application/json'},{ status: 'Forbidden!' }.to_json)
+    end
+  end
+
+  # Product create/edit: admins (any branch) and store managers (own branch,
+  # enforced in the service). Distributors and unknown roles are forbidden.
+  def product_write_required!
+    user = App.cu.user_obj
+    unless user&.admin? || user&.store_manager?
       request.halt(403, {'Content-Type' => 'application/json'},{ status: 'Forbidden!' }.to_json)
     end
   end
