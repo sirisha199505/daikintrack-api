@@ -66,9 +66,14 @@ class App::Services::Products < App::Services::Base
     user.branch_id
   end
 
+  # Generate a unique 13-digit, EAN-style numeric barcode ("890" + 10 digits).
+  # We verify against the table and retry, so auto-generated codes never collide.
   def generate_barcode
-    tail = App.generate_id.gsub(/\D/, '')
-    "890#{tail}".ljust(13, '0')[0, 13]
+    100.times do
+      candidate = "890#{SecureRandom.random_number(10**10).to_s.rjust(10, '0')}"
+      return candidate unless model.where(barcode: candidate).first
+    end
+    raise "Unable to generate a unique barcode"
   end
 
   def self.fields
