@@ -39,6 +39,11 @@ class App::Routes < Roda
         { status: 'success', version: 1 }
       end
 
+      # Public, non-sensitive counts for the login/marketing screen.
+      r.get 'stats' do
+        { status: 'success', data: { warehouses: App::Models::Branch.where(active: true).count } }
+      end
+
       # Authentication required for all routes below
       auth_required!
 
