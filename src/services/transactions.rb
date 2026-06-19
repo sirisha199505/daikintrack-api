@@ -4,9 +4,11 @@ class App::Services::Transactions < App::Services::Base
   def list
     ds = model.order(Sequel.desc(:occurred_at))
 
+    # Non-admins default to their own branch, but may VIEW another branch
+    # read-only by passing ?branch_id=.
     user = App.cu.user_obj
     if user && !user.admin? && user.branch_id
-      ds = ds.where(branch_id: user.branch_id)
+      ds = ds.where(branch_id: qs[:branch_id].presence || user.branch_id)
     elsif qs[:branch_id].present?
       ds = ds.where(branch_id: qs[:branch_id])
     end
