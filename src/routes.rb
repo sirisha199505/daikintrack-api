@@ -66,6 +66,17 @@ class App::Routes < Roda
           r.get { Products[r].list }
         end
 
+        # ---- CopperScan: waste copper wire measurements ----
+        # Read for any authenticated user; record for admins & store managers
+        # (managers scoped to the branch they pass / their own); delete admin-only.
+        r.on 'copper-scans' do
+          r.get('summary') { CopperScans[r].summary }
+          r.get(Integer) { |id| CopperScans[r, id: id].get }
+          r.post { product_write_required!; CopperScans[r].create }
+          r.delete(Integer) { |id| admin_required!; CopperScans[r, id: id].delete }
+          r.get { CopperScans[r].list }
+        end
+
         # ---- Stock movements: any authenticated user may record ----
         r.on 'transactions' do
           r.get(Integer) { |id| Transactions[r, id: id].get }
