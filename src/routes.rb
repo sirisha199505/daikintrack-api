@@ -70,6 +70,8 @@ class App::Routes < Roda
         # Read for any authenticated user; record for admins & store managers
         # (managers scoped to the branch they pass / their own); delete admin-only.
         r.on 'copper-scans' do
+          r.post('identify') { product_write_required!; CopperScans[r].identify }
+          r.post('estimate') { product_write_required!; CopperScans[r].estimate }
           r.get('summary') { CopperScans[r].summary }
           r.get(Integer) { |id| CopperScans[r, id: id].get }
           r.post { product_write_required!; CopperScans[r].create }
