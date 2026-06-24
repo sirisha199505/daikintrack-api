@@ -86,6 +86,78 @@ class App::Routes < Roda
           r.get  { Transactions[r].list }
         end
 
+        # ==== Tally-style inventory ====================================== #
+        # Master data: suppliers & customers. Read for any authed user;
+        # create/edit for admins & store managers; delete (soft) admin-only.
+        r.on 'suppliers' do
+          r.get(Integer)    { |id| Suppliers[r, id: id].get }
+          r.post            { product_write_required!; Suppliers[r].create }
+          r.put(Integer)    { |id| product_write_required!; Suppliers[r, id: id].update }
+          r.delete(Integer) { |id| admin_required!; Suppliers[r, id: id].delete }
+          r.get             { Suppliers[r].list }
+        end
+
+        r.on 'customers' do
+          r.get(Integer)    { |id| Customers[r, id: id].get }
+          r.post            { product_write_required!; Customers[r].create }
+          r.put(Integer)    { |id| product_write_required!; Customers[r, id: id].update }
+          r.delete(Integer) { |id| admin_required!; Customers[r, id: id].delete }
+          r.get             { Customers[r].list }
+        end
+
+        # Purchase invoices = Check-In (creates serialised units atomically).
+        r.on 'purchases' do
+          r.get(Integer) { |id| Purchases[r, id: id].get }
+          r.post         { product_write_required!; Purchases[r].create }
+          r.get          { Purchases[r].list }
+        end
+
+        # Sales invoices = Check-Out (allocates & sells serialised units).
+        r.on 'sales' do
+          r.get(Integer) { |id| Sales[r, id: id].get }
+          r.post         { product_write_required!; Sales[r].create }
+          r.get          { Sales[r].list }
+        end
+
+        # Returns / quarantine / replacements.
+        r.on 'returns'      do r.post { product_write_required!; Returns[r].create_return } end
+        r.on 'replacements' do r.post { product_write_required!; Returns[r].create_replacement } end
+
+        # Serialised units + per-unit quarantine actions.
+        r.on 'units' do
+          r.get('by-serial') { Units[r].by_serial }
+          r.on Integer do |id|
+            r.post('inspect')         { product_write_required!; Returns[r, id: id].send_to_inspection }
+            r.post('dispose')         { product_write_required!; Returns[r, id: id].dispose }
+            r.post('repair-complete') { product_write_required!; Returns[r, id: id].repair_complete }
+            r.get { Units[r, id: id].get }
+          end
+          r.get { Units[r].list }
+        end
+
+        # Inventory ledger feed.
+        r.on 'ledger' do
+          r.get { Reports[r].stock_ledger }
+        end
+
+        # Universal search + product history.
+        r.on 'inventory' do
+          r.get('search') { Reports[r].search }
+        end
+        r.on 'product-history' do
+          r.get { Reports[r].traceability }
+        end
+
+        # ERP/Tally-style reports.
+        r.on 'reports' do
+          r.get('stock-ledger')      { Reports[r].stock_ledger }
+          r.get('purchase-register') { Reports[r].purchase_register }
+          r.get('sales-register')    { Reports[r].sales_register }
+          r.get('outstanding-stock') { Reports[r].outstanding_stock }
+          r.get('traceability')      { Reports[r].traceability }
+        end
+        # ================================================================ #
+
         r.on 'branches' do
           r.get(Integer) { |id| Branches[r, id: id].get }
           r.post { admin_required!; Branches[r].create }

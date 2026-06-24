@@ -93,6 +93,30 @@ class App::Services::Base
   def r; request; end
   def rp; request.params; end
 
+  # ---- Shared branch helpers (used by inventory services) ----
+  # Scope a dataset to the caller's branch. Non-admins default to their own
+  # branch but may pass ?branch_id= to read another branch (read-only); admins
+  # see everything unless they pass a branch_id filter.
+  def scope_branch(ds, col = :branch_id)
+    user = App.cu.user_obj
+    if user && !user.admin? && user.branch_id
+      ds.where(col => qs[:branch_id].presence || user.branch_id)
+    elsif qs[:branch_id].present?
+      ds.where(col => qs[:branch_id])
+    else
+      ds
+    end
+  end
+
+  # Resolve the branch a write targets. Admins keep whatever was supplied; store
+  # managers are locked to their own branch (the request branch is ignored).
+  def resolve_branch!(requested)
+    user = App.cu.user_obj
+    return requested if user.nil? || user.admin?
+    return_errors!('You are not assigned to a branch.', 403) if user.branch_id.blank?
+    user.branch_id
+  end
+
 
   # Basic Operations
 
