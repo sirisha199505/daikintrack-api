@@ -38,10 +38,14 @@ class App::Services::Purchases < App::Services::Base
     actor     = App.cu.user_obj&.full_name
     occurred  = params[:occurred_at].present? ? Time.parse(params[:occurred_at].to_s) : Time.now
 
+    # Invoice number: use the one typed in (must be unique) or auto-generate.
+    invoice_no = params[:invoice_no].presence || next_invoice_no
+    return_errors!("Invoice number #{invoice_no} already exists", 400) if PurchaseInvoice.where(invoice_no: invoice_no).first
+
     inv = nil
     App.db.transaction do
       inv = PurchaseInvoice.create(
-        invoice_no:          next_invoice_no,
+        invoice_no:          invoice_no,
         supplier_invoice_no: params[:supplier_invoice_no],
         supplier_id:         supplier.id,
         supplier_name:       supplier.name,
