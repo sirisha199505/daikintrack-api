@@ -17,7 +17,7 @@ class App::Models::PurchaseInvoice < Sequel::Model
     as_json(only: [
       :id, :invoice_no, :supplier_invoice_no, :supplier_id, :branch_id,
       :supplier_name, :branch_name, :status, :total_qty, :total_amount,
-      :notes, :actor, :occurred_at, :created_at, :updated_at
+      :notes, :actor, :product_details, :occurred_at, :created_at, :updated_at
     ])
   end
 

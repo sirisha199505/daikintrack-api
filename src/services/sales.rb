@@ -50,6 +50,7 @@ class App::Services::Sales < App::Services::Base
         status:        'posted',
         actor:         actor,
         notes:         params[:notes],
+        product_details: Sequel.pg_jsonb(Array(params[:product_details])),
         occurred_at:   occurred
       )
 

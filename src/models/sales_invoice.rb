@@ -16,7 +16,7 @@ class App::Models::SalesInvoice < Sequel::Model
   def header_pos
     as_json(only: [
       :id, :invoice_no, :customer_id, :branch_id, :customer_name, :branch_name,
-      :status, :total_qty, :total_amount, :notes, :actor,
+      :status, :total_qty, :total_amount, :notes, :actor, :product_details,
       :occurred_at, :created_at, :updated_at
     ])
   end
