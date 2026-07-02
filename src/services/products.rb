@@ -2,7 +2,8 @@ class App::Services::Products < App::Services::Base
   def model; Product; end
 
   def list
-    ds = model.order(Sequel.desc(:updated_at))
+    # Eager-load category & branch so as_pos doesn't fire a query per row (N+1).
+    ds = model.eager(:category, :branch).order(Sequel.desc(:updated_at))
 
     # Non-admin users default to their own branch, but may VIEW another branch
     # read-only by passing ?branch_id= (writes stay locked to their own branch,

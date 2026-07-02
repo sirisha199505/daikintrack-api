@@ -2,7 +2,8 @@ class App::Services::Sales < App::Services::Base
   def model; SalesInvoice; end
 
   def list
-    ds = model.order(Sequel.desc(:occurred_at))
+    # Eager-load line items + their product/category so as_pos doesn't N+1.
+    ds = model.eager(items: { product: :category }).order(Sequel.desc(:occurred_at))
     ds = scope_branch(ds)
     ds = ds.where(customer_id: qs[:customer_id]) if qs[:customer_id].present?
     ds = ds.where(Sequel.lit('occurred_at >= ?', "#{qs[:from]} 00:00:00")) if qs[:from].present?
