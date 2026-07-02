@@ -30,10 +30,18 @@ class App::Services::Products < App::Services::Base
     return_success(item.as_pos)
   end
 
-  # Look a product up by its scanned barcode.
+  # Look a product up by its scanned barcode. Scanners/QR labels sometimes carry
+  # a concatenated payload (barcode + model + mfg-date + suffix), so if the
+  # incoming value is longer than a plain barcode we fall back to the leading
+  # 13-digit run — the same rule the frontend parser uses.
   def by_barcode
-    code = (qs[:barcode] || rp[:barcode]).to_s.strip
+    raw  = (qs[:barcode] || rp[:barcode]).to_s.strip
+    code = raw
     product = model.where(barcode: code).first
+    if product.nil? && raw.length > 13 && (m = raw.match(/^\d{13}/))
+      code = m[0]
+      product = model.where(barcode: code).first
+    end
     return_errors!("No product found for barcode #{code}", 404) unless product
     return_success(product.as_pos)
   end
@@ -76,6 +84,7 @@ class App::Services::Products < App::Services::Base
   def self.fields
     {
       save: [:name, :branch_id, :category_id, :barcode,
+             :model_number, :manufacturing_date, :serial_code,
              :stock, :low_stock_threshold, :price, :active]
     }
   end

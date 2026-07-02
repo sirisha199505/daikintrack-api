@@ -28,6 +28,7 @@ class App::Models::Product < Sequel::Model
   def as_pos
     as_json(only: [
       :id, :name, :branch_id, :category_id, :barcode,
+      :model_number, :manufacturing_date, :serial_code,
       :stock, :low_stock_threshold, :price, :active,
       :qty_purchased, :qty_sold, :qty_returned,
       :created_at, :updated_at

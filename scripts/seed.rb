@@ -1,4 +1,4 @@
-# Seeds reference data (branches, categories) and the three login users.
+# Seeds reference data (branches, categories) and the admin login user.
 # Idempotent: safe to run multiple times. Mirrors Daikintrack/src/data/seed.js.
 # Usage: DB_URL="postgres://..." ruby scripts/seed.rb
 require 'sequel'
@@ -57,13 +57,11 @@ CATEGORIES.each do |c|
 end
 puts "Categories: #{DB[:categories].count}"
 
+# Only the admin login is seeded. Create store managers / distributors from the
+# in-app User Management screen so the seed never resurrects deleted accounts.
 USERS = [
   { full_name: 'System Admin',  username: 'admin',  password: 'admin',   email: 'admin@daikin.in',
     phone_number: '+91 98100 00001', role: 1, branch_id: nil },
-  { full_name: 'Vikram Daikin', username: 'vikram', password: 'manager', email: 'vikram@daikin.in',
-    phone_number: '+91 98100 00002', role: 2, branch_id: branch_ids['north'] },
-  { full_name: 'Rahul Verma',   username: 'rahul',  password: 'manager', email: 'rahul@daikin.in',
-    phone_number: '+91 98100 00003', role: 3, branch_id: branch_ids['north'] },
 ]
 
 USERS.each do |u|
@@ -74,7 +72,7 @@ USERS.each do |u|
     status: 'Active', active: true, created_at: now, updated_at: now
   ))
 end
-puts "Users: #{DB[:users].count} (login with admin/admin, vikram/manager, rahul/manager)"
+puts "Users: #{DB[:users].count} (login with admin/admin)"
 
 DB.disconnect
 puts 'Seed complete.'

@@ -28,11 +28,13 @@ class App::Services::Purchases < App::Services::Base
   # serial) per purchased quantity, increments the product's available stock,
   # and writes an inventory_ledger row per unit. Fully atomic.
   def create
-    check_presence!(:supplier_id)
     items = Array(params[:items])
     return_errors!('At least one line item is required') if items.empty?
 
-    supplier  = Supplier[params[:supplier_id]] or return_errors!('Supplier not found', 404)
+    # Supplier is optional — check-in no longer captures it. When a supplier_id
+    # is supplied (legacy callers) we still validate & snapshot it, so existing
+    # invoices keep showing their supplier name in the details view.
+    supplier  = params[:supplier_id].present? ? (Supplier[params[:supplier_id]] or return_errors!('Supplier not found', 404)) : nil
     branch_id = resolve_branch!(params[:branch_id])
     branch    = Branch[branch_id]
     actor     = App.cu.user_obj&.full_name
@@ -47,8 +49,8 @@ class App::Services::Purchases < App::Services::Base
       inv = PurchaseInvoice.create(
         invoice_no:          invoice_no,
         supplier_invoice_no: params[:supplier_invoice_no],
-        supplier_id:         supplier.id,
-        supplier_name:       supplier.name,
+        supplier_id:         supplier&.id,
+        supplier_name:       supplier&.name,
         branch_id:           branch_id,
         branch_name:         branch&.name,
         status:              'posted',
@@ -79,8 +81,8 @@ class App::Services::Purchases < App::Services::Base
             branch_id:           branch_id,
             purchase_invoice_id: inv.id,
             purchase_item_id:    item.id,
-            supplier_id:         supplier.id,
-            supplier_name:       supplier.name,
+            supplier_id:         supplier&.id,
+            supplier_name:       supplier&.name,
             cost_price:          cost,
             purchased_at:        occurred,
             status:              'available'
@@ -89,7 +91,7 @@ class App::Services::Purchases < App::Services::Base
           InventoryLedger.create(
             movement_type: 'purchase', product_id: product.id, product_unit_id: unit.id,
             serial_no: unit.serial_no, qty: 1, to_status: 'available',
-            invoice_no: inv.invoice_no, party_name: supplier.name,
+            invoice_no: inv.invoice_no, party_name: supplier&.name,
             branch_id: branch_id, branch_name: branch&.name,
             balance_after: running, unit_price: cost, actor: actor,
             ref_invoice_id: inv.id, occurred_at: occurred
