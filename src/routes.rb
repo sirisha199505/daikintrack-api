@@ -106,17 +106,23 @@ class App::Routes < Roda
         end
 
         # Purchase invoices = Check-In (creates serialised units atomically).
+        # DELETE voids a check-in and reverses its stock/serials/ledger.
         r.on 'purchases' do
-          r.get(Integer) { |id| Purchases[r, id: id].get }
-          r.post         { product_write_required!; Purchases[r].create }
-          r.get          { Purchases[r].list }
+          r.get(Integer)    { |id| Purchases[r, id: id].get }
+          r.post            { product_write_required!; Purchases[r].create }
+          r.put(Integer)    { |id| product_write_required!; Purchases[r, id: id].update }
+          r.delete(Integer) { |id| product_write_required!; Purchases[r, id: id].delete }
+          r.get             { Purchases[r].list }
         end
 
         # Sales invoices = Check-Out (allocates & sells serialised units).
+        # DELETE voids a check-out and returns its units to available stock.
         r.on 'sales' do
-          r.get(Integer) { |id| Sales[r, id: id].get }
-          r.post         { product_write_required!; Sales[r].create }
-          r.get          { Sales[r].list }
+          r.get(Integer)    { |id| Sales[r, id: id].get }
+          r.post            { product_write_required!; Sales[r].create }
+          r.put(Integer)    { |id| product_write_required!; Sales[r, id: id].update }
+          r.delete(Integer) { |id| product_write_required!; Sales[r, id: id].delete }
+          r.get             { Sales[r].list }
         end
 
         # Returns / quarantine / replacements.

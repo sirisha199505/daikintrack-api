@@ -21,9 +21,16 @@ class App::Models::PurchaseInvoice < Sequel::Model
     ])
   end
 
-  # List rows omit line items (lighter payload); detail includes them.
+  # List rows omit full line items (lighter payload) but surface the first
+  # line's product + category so the list can show them without a detail fetch.
   def as_pos
-    header_pos.merge!(line_count: items.count, unit_count: total_qty)
+    first = items.first
+    header_pos.merge!(
+      line_count:    items.count,
+      unit_count:    total_qty,
+      product_name:  first&.product_name,
+      category_name: first&.product&.category&.name
+    )
   end
 
   def as_detail

@@ -22,7 +22,13 @@ class App::Models::SalesInvoice < Sequel::Model
   end
 
   def as_pos
-    header_pos.merge!(line_count: items.count, unit_count: total_qty)
+    first = items.first
+    header_pos.merge!(
+      line_count:    items.count,
+      unit_count:    total_qty,
+      product_name:  first&.product_name,
+      category_name: first&.product&.category&.name
+    )
   end
 
   def as_detail

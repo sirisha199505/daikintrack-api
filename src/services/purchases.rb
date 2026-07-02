@@ -126,6 +126,107 @@ class App::Services::Purchases < App::Services::Base
     return_errors!("Could not post purchase: #{e.message}", 400)
   end
 
+  # Edit a check-in. Descriptive fields (bill/ref, notes, product-details) are
+  # always safe; a changed `quantity` adds/removes serialised units and adjusts
+  # stock atomically. Reducing below units already sold is refused.
+  def update
+    inv  = item
+    data = {}
+    data[:supplier_invoice_no] = params[:supplier_invoice_no] if params.key?(:supplier_invoice_no)
+    data[:notes]               = params[:notes]               if params.key?(:notes)
+    data[:product_details]     = Sequel.pg_jsonb(Array(params[:product_details])) if params.key?(:product_details)
+
+    App.db.transaction do
+      inv.update(data) unless data.empty?
+      adjust_quantity!(inv, params[:quantity].to_i) if params.key?(:quantity)
+    end
+    return_success(inv.reload.as_detail)
+  rescue => e
+    App.logger.error("Purchase update error: #{e.message}")
+    App.logger.error(e.backtrace.join("\n"))
+    return_errors!("Could not update check-in: #{e.message}", 400)
+  end
+
+  # Grow/shrink the (single) line's unit count. New units mint fresh serials;
+  # removed units must still be 'available' (unsold) to keep stock consistent.
+  def adjust_quantity!(inv, new_qty)
+    items = PurchaseItem.where(purchase_invoice_id: inv.id).all
+    return_errors!('Quantity edit is only supported for single-product check-ins.') if items.size != 1
+    li      = items.first
+    new_qty = [new_qty, 1].max
+    diff    = new_qty - li.quantity.to_i
+    return if diff.zero?
+
+    product = Product[li.product_id] or return_errors!('Product missing', 404)
+    branch  = inv.branch
+    actor   = App.cu.user_obj&.full_name
+    cost    = li.cost_price.to_i
+
+    if diff.positive?
+      running = product.stock.to_i
+      diff.times do
+        unit = ProductUnit.create(
+          serial_no: ProductUnit.generate_serial(product), product_id: product.id,
+          branch_id: inv.branch_id, purchase_invoice_id: inv.id, purchase_item_id: li.id,
+          cost_price: cost, purchased_at: inv.occurred_at, status: 'available'
+        )
+        running += 1
+        InventoryLedger.create(
+          movement_type: 'purchase', product_id: product.id, product_unit_id: unit.id,
+          serial_no: unit.serial_no, qty: 1, to_status: 'available', invoice_no: inv.invoice_no,
+          branch_id: inv.branch_id, branch_name: branch&.name, balance_after: running,
+          unit_price: cost, actor: actor, ref_invoice_id: inv.id, occurred_at: inv.occurred_at
+        )
+      end
+      Product.where(id: product.id).update(stock: Sequel.+(:stock, diff), qty_purchased: Sequel.+(:qty_purchased, diff))
+    else
+      remove_n = -diff
+      avail = ProductUnit.where(purchase_invoice_id: inv.id, product_id: product.id, status: 'available').limit(remove_n).all
+      return_errors!("Cannot reduce to #{new_qty}: only #{avail.size} of these units are still in stock (the rest have been sold or moved).", 400) if avail.size < remove_n
+      ids = avail.map(&:id)
+      InventoryLedger.where(product_unit_id: ids).delete
+      ProductUnit.where(id: ids).delete
+      Product.where(id: product.id).update(stock: Sequel.-(:stock, remove_n), qty_purchased: Sequel.-(:qty_purchased, remove_n))
+    end
+
+    li.update(quantity: new_qty, line_total: new_qty * cost)
+    inv.update(total_qty: new_qty, total_amount: new_qty * cost)
+  end
+
+  # Void a check-in: remove its serialised units, reverse stock/counters, and
+  # delete the invoice + line items + ledger rows. Refuses if any unit has left
+  # the 'available' state (e.g. already sold), since that can't be safely undone.
+  def delete
+    inv   = item
+    units = ProductUnit.where(purchase_invoice_id: inv.id).all
+    moved = units.reject { |u| u.status == 'available' }
+    if moved.any?
+      return_errors!("Cannot delete: #{moved.size} unit(s) from this check-in have already been sold or moved out of stock.", 400)
+    end
+
+    unit_ids = units.map(&:id)
+    counts   = units.each_with_object(Hash.new(0)) { |u, h| h[u.product_id] += 1 }
+
+    App.db.transaction do
+      InventoryLedger.where(product_unit_id: unit_ids).delete if unit_ids.any?
+      ProductUnit.where(purchase_invoice_id: inv.id).delete
+      PurchaseItem.where(purchase_invoice_id: inv.id).delete
+      counts.each do |pid, n|
+        Product.where(id: pid).update(
+          stock:         Sequel.-(:stock, n),
+          qty_purchased: Sequel.-(:qty_purchased, n)
+        )
+      end
+      Transaction.where(invoice_no: inv.invoice_no).delete
+      inv.delete
+    end
+    return_success({ id: inv.id, deleted: true })
+  rescue => e
+    App.logger.error("Purchase delete error: #{e.message}")
+    App.logger.error(e.backtrace.join("\n"))
+    return_errors!("Could not delete check-in: #{e.message}", 400)
+  end
+
   def next_invoice_no
     "PINV-2026-#{4900 + model.count + 1}"
   end
